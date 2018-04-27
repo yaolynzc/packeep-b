@@ -59,9 +59,9 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 		//err := db.Find(&packs)			// 查询全部
 
 		if len(uphone) != 0 {
-			db.Where("userphone like ?", "%"+uphone+"%").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
+			db.Where("userphone like ?", "%"+uphone+"%").Order("intime desc").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
 		} else {
-			db.Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
+			db.Offset((page_int - 1) * size_int).Order("intime desc").Limit(size_int).Find(&packs)
 		}
 		result["dt"] = packs // 符合提交的分页列表
 	}
