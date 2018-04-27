@@ -15,14 +15,14 @@ import (
 var db *gorm.DB
 
 type Pack struct {
-	Id string
+	Id int `gorm:"primary_key"`
 	Userphone string `gorm:"not null"`
 	Username string `gorm:"not null"`
 	State  int `gorm:"default:0"`
 	Havedial int `gorm:"default:0"`
 	Havemess int `gorm:"default:0"`
-	Intime time.Time
-	Outtime time.Time
+	Intime time.Time `gorm:"default:null"`
+	Outtime time.Time `gorm:"default:null"`
 }
 // 修改默认表名
 //func (Pack) TableName() string {
@@ -75,19 +75,20 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 
 // 根据id查询
 func getPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
-	id := ps.ByName("id")
+	id,_ := strconv.Atoi(ps.ByName("id"))
 	var pack Pack
-	err := db.First(&pack,id)
+	res := db.First(&pack,id)
 
 	//定义返回的数据结构
 	result := make(map[string]interface{})
-	if err != nil {
+	if res.RowsAffected  > 0 {
 		result["pack"] = pack
 		result["success"] = true
 	}else{
 		result["success"] = false
 	}
 
+	// 返回json
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(getJson(result))
 }
@@ -95,28 +96,34 @@ func getPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 // 新增记录
 func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	r.ParseForm()
-	id := r.FormValue("id")
+
 	uphone := r.FormValue("uphone")
 	uname := r.FormValue("uname")
 
-	pack := Pack{
-		Id:id,
-		Userphone:uphone,
-		Username:uname,
-		Intime:time.Now(),
-		Outtime:time.Now(),
-	}
-	// 执行新增操作
-	err := db.Create(&pack)
+	var maxid int
+	db.Model(&Pack{}).Where("1=1").Count(&maxid)
+	// 编码默认从1001开始
+	maxid += 1001
+
+	var pack Pack
+	pack.Id = maxid
+	pack.Userphone = uphone
+	pack.Username = uname
+	pack.Intime = time.Now()
+	pack.Outtime = time.Now()
+
+	// 执行新增
+	res := db.Create(&pack)
 
 	//定义返回的数据结构
 	result := make(map[string]interface{})
-	if err != nil {
+	if res.RowsAffected > 0 {
 		result["success"] = true
 	}else{
 		result["success"] = false
 	}
 
+	// 返回json
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(getJson(result))
 }
@@ -124,15 +131,16 @@ func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 // 修改记录
 func modPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	r.ParseForm()
-
+	// 获取传值
 	uphone := r.FormValue("uphone")
 	uname := r.FormValue("uname")
 	state := r.FormValue("state")
 	havedial := r.FormValue("havedial")
 	havemess := r.FormValue("havemess")
 
+	id,_ := strconv.Atoi(ps.ByName("id"))
 	var pack Pack
-	db.First(&pack,ps.ByName("id"))
+	db.First(&pack,id)
 
 	if len(uphone) != 0 {
 		pack.Userphone =uphone
@@ -155,16 +163,18 @@ func modPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 		pack.Havedial,_ = strconv.Atoi(havemess)
 	}
 
-	err := db.Save(&pack)
+	// 执行更新
+	res := db.Save(&pack)
 
 	//定义返回的数据结构
 	result := make(map[string]interface{})
-	if err != nil {
+	if res.RowsAffected > 0 {
 		result["success"] = true
 	}else{
 		result["success"] = false
 	}
 
+	// 返回json
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(getJson(result))
 }
@@ -177,6 +187,7 @@ func main(){
 
 	// 关闭自动添加s到表名后面（模型名称）
 	db.SingularTable(true)
+
 	// 设置所有表的默认前缀
 	gorm.DefaultTableNameHandler = func(db *gorm.DB, defaultTableName string) string {
 		return "tb_" + defaultTableName
@@ -192,11 +203,9 @@ func main(){
 	router.POST("/api/pack",addPack)
 	router.PUT("/api/pack/:id",modPack)
 
-	err2 := http.ListenAndServe(":8080",router)
-	if err2 != nil {
-		log.Fatalln("服务器监听错误：",err2)
-	}else{
-		log.Println("服务器监听启动，端口：8080")
+	err := http.ListenAndServe(":8080",router)
+	if err != nil {
+		log.Fatalln("服务器成功启动，端口：8080")
 	}
 }
 
