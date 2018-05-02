@@ -18,11 +18,11 @@ type Pack struct {
 	Id int `gorm:"primary_key"`
 	Userphone string `gorm:"not null"`
 	Username string `gorm:"not null"`
-	State  int `gorm:"default:0"`
-	Havedial int `gorm:"default:0"`
-	Havemess int `gorm:"default:0"`
-	Intime time.Time `gorm:"default:null"`
-	Outtime time.Time `gorm:"default:null"`
+	State  int
+	Havedial int
+	Havemess int
+	Intime time.Time
+	Outtime time.Time
 }
 // 修改默认表名
 //func (Pack) TableName() string {
@@ -33,6 +33,7 @@ type Pack struct {
 func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 	r.ParseForm()
 	uphone := r.FormValue("uphone")
+	state := r.FormValue("state")
 	page := r.FormValue("page")
 	size := r.FormValue("size")
 
@@ -43,9 +44,16 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 	if len(page) == 0 && len(size) == 0 {
 		var count int
 
+		// 查询全部
 		rs := db.Model(&Pack{}).Where("1=1").Count(&count)
+		// 根据uphone筛选
 		if len(uphone) != 0 {
 			rs = rs.Where("userphone like ?", "%"+uphone+"%").Count(&count)
+		}
+		// 根据state筛选
+		if len(state) != 0 {
+			state_int,_ := strconv.Atoi(state)
+			rs = rs.Where("state = ?",state_int).Count(&count)
 		}
 
 		result["count"] = count		// 符合条件的记录总数
@@ -56,14 +64,27 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 
 		// 定义pack切片，存储数据集
 		var packs []*Pack
-		//err := db.Find(&packs)			// 查询全部
 
+		// 查询全部
+		rs := db.Find(&packs)
+		// 根据uphone筛选
 		if len(uphone) != 0 {
-			db.Where("userphone like ?", "%"+uphone+"%").Order("intime desc").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
-		} else {
-			db.Offset((page_int - 1) * size_int).Order("intime desc").Limit(size_int).Find(&packs)
+			//rs = rs.Where("userphone like ?", "%"+uphone+"%").Order("intime desc").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
+			rs = rs.Where("userphone like ?", "%"+uphone+"%").Find(&packs)
 		}
-		result["dt"] = packs // 符合提交的分页列表
+		// 根据state筛选
+		if len(state) != 0 {
+			state_int,_ := strconv.Atoi(state)
+			rs = rs.Where("state = ?",state_int).Find(&packs)
+		}
+		// 排序，分页
+		if state == "1" {
+			rs = rs.Order("outtime desc").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
+		}else {
+			rs = rs.Order("intime desc").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
+		}
+
+		result["dt"] = packs
 	}
 
 	result["success"] = true
@@ -109,6 +130,9 @@ func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	pack.Id = maxid
 	pack.Userphone = uphone
 	pack.Username = uname
+	pack.State = 0
+	pack.Havedial = 0
+	pack.Havemess = 0
 	pack.Intime = time.Now()
 	pack.Outtime = time.Now()
 
