@@ -15,7 +15,8 @@ import (
 var db *gorm.DB
 
 type Pack struct {
-	Id int `gorm:"primary_key"`
+	Id int `gorm:"auto_increment"`
+	Poscode string `gorm:"not null"`
 	Userphone string `gorm:"not null"`
 	Username string `gorm:"not null"`
 	State  int
@@ -24,6 +25,7 @@ type Pack struct {
 	Intime time.Time
 	Outtime time.Time
 }
+
 // 修改默认表名
 //func (Pack) TableName() string {
 //	return "tb_pack"
@@ -118,16 +120,12 @@ func getPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	r.ParseForm()
 
+	pcode := r.FormValue("pcode")
 	uphone := r.FormValue("uphone")
 	uname := r.FormValue("uname")
 
-	var maxid int
-	db.Model(&Pack{}).Where("1=1").Count(&maxid)
-	// 编码默认从1001开始
-	maxid += 1001
-
 	var pack Pack
-	pack.Id = maxid
+	pack.Poscode = pcode
 	pack.Userphone = uphone
 	pack.Username = uname
 	pack.State = 0
@@ -156,6 +154,7 @@ func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 func modPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	r.ParseForm()
 	// 获取传值
+	pcode := r.FormValue("pcode")
 	uphone := r.FormValue("uphone")
 	uname := r.FormValue("uname")
 	state := r.FormValue("state")
@@ -165,6 +164,10 @@ func modPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	id,_ := strconv.Atoi(ps.ByName("id"))
 	var pack Pack
 	db.First(&pack,id)
+
+	if len(pcode) != 0 {
+		pack.Poscode =pcode
+	}
 
 	if len(uphone) != 0 {
 		pack.Userphone =uphone
@@ -203,10 +206,43 @@ func modPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	w.Write(getJson(result))
 }
 
+// 根据手机号分组获取packs
+func getUphoneList(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	r.ParseForm()
+	uphone := r.FormValue("uphone")
+	size := r.FormValue("size")
+
+	// 定义返回的数据结构
+	result := make(map[string]interface{})
+
+	// 定义只有用户电话和姓名的结构体
+	type Uphonename struct {
+		Userphone string
+		Username string
+	}
+
+	// 定义uphonenames切片，存储数据集
+	var uphonenames []Uphonename
+	rows, _ := db.Model(&Pack{}).Where("userphone like ?","%"+uphone+"%").Select("distinct userphone,username ").Limit(size).Rows()
+	defer rows.Close()
+	for rows.Next() {
+		var uphonename Uphonename
+		db.ScanRows(rows, &uphonename)
+		//fmt.Printf(uphonename.Userphone)
+		uphonenames = append(uphonenames,uphonename)
+	}
+	result["dt"] = uphonenames
+	result["success"] = true
+
+	// 返回json结果
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(getJson(result))
+}
+
 // 主程序入口
 func main(){
 	// 连接数据库
-	db,_ = gorm.Open("mysql", "root:flame@tcp(211.159.218.41:3306)/packeep?charset=utf8&parseTime=True&loc=Local")
+	db,_ = gorm.Open("mysql", "root:flame@tcp(211.159.218.41:3306)/packeepdev?charset=utf8&parseTime=True&loc=Local")
 	defer db.Close()
 
 	// 关闭自动添加s到表名后面（模型名称）
@@ -226,6 +262,7 @@ func main(){
 	router.GET("/api/pack/:id",getPack)
 	router.POST("/api/pack",addPack)
 	router.PUT("/api/pack/:id",modPack)
+	router.GET("/api/phone",getUphoneList)
 
 	err := http.ListenAndServe(":8080",router)
 	if err != nil {
