@@ -105,8 +105,8 @@ func getPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	//定义返回的数据结构
 	result := make(map[string]interface{})
 	if res.RowsAffected  > 0 {
-		result["pack"] = pack
 		result["success"] = true
+		result["pack"] = pack
 	}else{
 		result["success"] = false
 	}
@@ -206,7 +206,29 @@ func modPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	w.Write(getJson(result))
 }
 
-// 根据手机号分组获取packs
+// 删除记录
+func delPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	id := ps.ByName("id")
+	var pack Pack
+	db.First(&pack, id) // 查询id为1的product
+
+	// 删除
+	res := db.Delete(&pack)
+
+	//定义返回的数据结构
+	result := make(map[string]interface{})
+	if res.RowsAffected > 0 {
+		result["success"] = true
+	}else{
+		result["success"] = false
+	}
+
+	// 返回json
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(getJson(result))
+}
+
+// 根据手机号部分数字获取符合要求的手机号distinct
 func getUphoneList(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	r.ParseForm()
 	uphone := r.FormValue("uphone")
@@ -218,12 +240,11 @@ func getUphoneList(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	// 定义只有用户电话和姓名的结构体
 	type Uphonename struct {
 		Userphone string
-		Username string
 	}
 
 	// 定义uphonenames切片，存储数据集
 	var uphonenames []Uphonename
-	rows, _ := db.Model(&Pack{}).Where("userphone like ?","%"+uphone+"%").Select("distinct userphone,username ").Limit(size).Rows()
+	rows, _ := db.Model(&Pack{}).Where("userphone like ?","%"+uphone+"%").Select("distinct userphone").Limit(size).Rows()
 	defer rows.Close()
 	for rows.Next() {
 		var uphonename Uphonename
@@ -239,6 +260,26 @@ func getUphoneList(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	w.Write(getJson(result))
 }
 
+// 根据手机号获取用户姓名
+func getUnameByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	uphone := ps.ByName("tel")
+
+	var pack Pack
+	res := db.Where("userphone = ? and username is not null", uphone).First(&pack)
+
+	//定义返回的数据结构
+	result := make(map[string]interface{})
+	if res.RowsAffected > 0 {
+		result["success"] = true
+		result["pack"] = pack
+	}else{
+		result["success"] = false
+	}
+
+	// 返回json
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(getJson(result))
+}
 // 主程序入口
 func main(){
 	// 连接数据库
@@ -262,7 +303,9 @@ func main(){
 	router.GET("/api/pack/:id",getPack)
 	router.POST("/api/pack",addPack)
 	router.PUT("/api/pack/:id",modPack)
-	router.GET("/api/phone",getUphoneList)
+	router.DELETE("/api/pack/:id", delPack)
+	router.GET("/api/phone", getUphoneList)
+	router.GET("/api/phone/:tel", getUnameByPhone)
 
 	err := http.ListenAndServe(":8080",router)
 	if err != nil {
