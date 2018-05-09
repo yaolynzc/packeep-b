@@ -181,9 +181,9 @@ func modPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 		pack.State,_ = strconv.Atoi(state)
 		pack.Outtime = time.Now()
 	}
-
+	// 每次电话通知后，数值加1
 	if len(havedial) != 0 {
-		pack.Havedial,_ = strconv.Atoi(havedial)
+		pack.Havedial += 1
 	}
 
 	if len(havemess) != 0 {
@@ -228,7 +228,7 @@ func delPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	w.Write(getJson(result))
 }
 
-// 根据手机号部分数字获取符合要求的手机号distinct
+// 根据手机号部分数字获取符合要求的手机号和用户姓名distinct
 func getUphoneList(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	r.ParseForm()
 	uphone := r.FormValue("uphone")
@@ -240,11 +240,12 @@ func getUphoneList(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	// 定义只有用户电话和姓名的结构体
 	type Uphonename struct {
 		Userphone string
+		Username string
 	}
 
 	// 定义uphonenames切片，存储数据集
 	var uphonenames []Uphonename
-	rows, _ := db.Model(&Pack{}).Where("userphone like ?","%"+uphone+"%").Select("distinct userphone").Limit(size).Rows()
+	rows, _ := db.Model(&Pack{}).Where("userphone like ? and username is not null","%"+uphone+"%").Select("distinct userphone,username ").Limit(size).Rows()
 	defer rows.Close()
 	for rows.Next() {
 		var uphonename Uphonename
