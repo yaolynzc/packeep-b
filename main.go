@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
 	"log"
 	"time"
@@ -9,6 +10,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	_"github.com/go-sql-driver/mysql"
 	"strconv"
+	"io/ioutil"
+	"strings"
 )
 
 // 定义数据库连接实例db对象
@@ -281,6 +284,39 @@ func getUnameByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(getJson(result))
 }
+
+// 接收前端post请求，通过后台post实现给指定号码拨打电话，并将结果返回前端
+func sendDialByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	r.ParseForm()
+
+	uphone := r.FormValue("uphone")
+	uname := r.FormValue("uname")
+
+	//定义返回的数据结构
+	result := make(map[string]interface{})
+
+	// 配置“赛邮-云通信-mysubmail”语音通知API基本参数
+	config := make(map[string]interface{})
+	vars := make(map[string]string)
+	url := "https://api.mysubmail.com/voice/xsend"
+	config["appid"] = "20694"
+	config["signature"] = "c0428970b976d160b77d59b3e28d7137"
+	config["to"] = uphone
+	config["project"] = "ux0bf2"
+	vars["name"] = uname
+	config["vars"] = vars
+
+	postRes := HttpPost(url,config)
+	if(strings.Contains(postRes,"success")){
+		result["success"] = true
+	}else{
+		result["success"] = false
+	}
+	// 返回json
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(getJson(result))
+}
+
 // 主程序入口
 func main(){
 	// 连接数据库
@@ -307,6 +343,7 @@ func main(){
 	router.DELETE("/api/pack/:id", delPack)
 	router.GET("/api/phone", getUphoneList)
 	router.GET("/api/phone/:tel", getUnameByPhone)
+	router.POST("/api/phone", sendDialByPhone)
 
 	err := http.ListenAndServe(":8080",router)
 	if err != nil {
@@ -324,4 +361,26 @@ func getJson(data interface{})(output []byte){
 		content = []byte("convert to json fail")
 	}
 	return content
+}
+
+// 通过go发送post请求，通过mysubmail api接口拨打电话
+func HttpPost(queryurl string, postdata map[string]interface{}) string {
+	data, err := json.Marshal(postdata)
+	if err != nil {
+		return err.Error()
+	}
+
+	body := bytes.NewBuffer([]byte(data))
+
+	retstr, err := http.Post(queryurl, "application/json;charset=utf-8", body)
+
+	if err != nil {
+		return err.Error()
+	}
+	result, err := ioutil.ReadAll(retstr.Body)
+	retstr.Body.Close()
+	if err != nil {
+		return err.Error()
+	}
+	return string(result)
 }
