@@ -21,3 +21,6 @@
 *.ntvs*
 *.njsproj
 *.sln
+
+# Upload files
+upload/

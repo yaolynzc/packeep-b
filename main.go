@@ -12,10 +12,17 @@ import (
 	"strconv"
 	"io/ioutil"
 	"strings"
+	"encoding/base64"
+	"image"
+	"os"
+	"fmt"
+	"image/png"
 )
 
 // 定义数据库连接实例db对象
 var db *gorm.DB
+// 存入数据库的图片相对路径前缀
+const picPrefix = "upload/pic/"
 
 type Pack struct {
 	Id int `gorm:"auto_increment"`
@@ -25,6 +32,7 @@ type Pack struct {
 	State  int
 	Havedial int
 	Havemess int
+	Havepic string
 	Intime time.Time
 	Outtime time.Time
 }
@@ -122,7 +130,6 @@ func getPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 // 新增记录
 func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	r.ParseForm()
-
 	pcode := r.FormValue("pcode")
 	uphone := r.FormValue("uphone")
 	uname := r.FormValue("uname")
@@ -134,6 +141,7 @@ func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	pack.State = 0
 	pack.Havedial = 0
 	pack.Havemess = 0
+	pack.Havepic = ""
 	pack.Intime = time.Now()
 	pack.Outtime = time.Now()
 
@@ -217,6 +225,64 @@ func delPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 
 	// 删除
 	res := db.Delete(&pack)
+
+	//定义返回的数据结构
+	result := make(map[string]interface{})
+	if res.RowsAffected > 0 {
+		result["success"] = true
+	}else{
+		result["success"] = false
+	}
+
+	// 返回json
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(getJson(result))
+}
+
+// 拍照上传并签收
+func uploadPic(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	r.ParseForm()
+	// 获取传值
+	havepic := r.FormValue("havepic")
+	state := r.FormValue("state")
+	id,_ := strconv.Atoi(ps.ByName("id"))
+
+	var pack Pack
+	db.First(&pack,id)
+
+	// 更新state状态值
+	if len(state) != 0 {
+		pack.State,_ = strconv.Atoi(state)
+		pack.Outtime = time.Now()
+	}
+
+	// 如果图片不为空，保存图片文件到当前upload/pic目录，数据库存入相对路径
+	if len(havepic) != 0 {
+		reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(havepic))
+		// 转换成png格式的图像，需要导入：_“image/png”
+		pngPic, _, _ := image.Decode(reader)
+
+		// 图片存储路径检测
+		havePath,_ := PathExists(picPrefix)
+		if(havePath){
+			// 图片保存到磁盘目录
+			nowstr := time.Now().Unix()
+			picPath := picPrefix + strconv.Itoa(id) + "_" + strconv.FormatInt(nowstr,10) + ".png"
+			wt, err := os.Create(picPath)
+			if err != nil {
+				fmt.Println("图片保存失败!")
+			}
+			defer wt.Close()
+			// 转换为jpeg格式的图像，这里质量为30（质量取值是1-100）
+			//jpeg.Encode(wt, m, &jpeg.Options{30})
+			png.Encode(wt,pngPic)
+			// 图片路径值写入数据库
+			pack.Havepic = picPath
+		}
+	}
+
+	// 执行更新
+	res := db.Save(&pack)
 
 	//定义返回的数据结构
 	result := make(map[string]interface{})
@@ -320,7 +386,7 @@ func sendDialByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params)
 // 主程序入口
 func main(){
 	// 连接数据库
-	db,_ = gorm.Open("mysql", "root:flame@tcp(211.159.218.41:3306)/packeepdev?charset=utf8&parseTime=True&loc=Local")
+	db,_ = gorm.Open("mysql", "root:flame@tcp(211.159.218.41:3306)/packeep?charset=utf8&parseTime=True&loc=Local")
 	defer db.Close()
 
 	// 关闭自动添加s到表名后面（模型名称）
@@ -344,6 +410,7 @@ func main(){
 	router.GET("/api/phone", getUphoneList)
 	router.GET("/api/phone/:tel", getUnameByPhone)
 	router.POST("/api/phone", sendDialByPhone)
+	router.POST("/api/pack/:id", uploadPic)
 
 	err := http.ListenAndServe(":8080",router)
 	if err != nil {
@@ -383,4 +450,22 @@ func HttpPost(queryurl string, postdata map[string]interface{}) string {
 		return err.Error()
 	}
 	return string(result)
+}
+
+// 判断目录是否存在，不存在则创建
+func PathExists(path string) (bool, error){
+	_, err := os.Stat(path)
+	// 存在直接返回true
+	if err == nil {
+		return true, nil
+	}
+	// 不存在则创建，然后返回true
+	if os.IsNotExist(err) {
+		// 递归创建目录
+		err := os.MkdirAll(path, os.ModePerm)
+		if(err == nil) {
+			return true, nil
+		}
+	}
+	return false, err
 }
