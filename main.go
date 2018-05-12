@@ -17,12 +17,13 @@ import (
 	"os"
 	"fmt"
 	"image/png"
+	"runtime"
 )
 
 // 定义数据库连接实例db对象
 var db *gorm.DB
 // 存入数据库的图片相对路径前缀
-const picPrefix = "upload/pic/"
+var picPrefix = "upload/pic/"
 
 type Pack struct {
 	Id int `gorm:"auto_increment"`
@@ -262,13 +263,23 @@ func uploadPic(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 		// 转换成png格式的图像，需要导入：_“image/png”
 		pngPic, _, _ := image.Decode(reader)
 
-		// 图片存储路径检测
-		havePath,_ := PathExists(picPrefix)
+		//  图片文件名
+		fileName := strconv.Itoa(id) + "_" + strconv.FormatInt(time.Now().Unix(),10) + ".png"
+
+		// 图片web相对路径
+		picWebPath := picPrefix + fileName
+
+		// 图片存储绝对路径，windows下设置exe路径下./upload/pic
+		picDirPath := "./upload/pic/"
+		// 非windows系统下设置绝对路径/data/upload/pic
+		if(runtime.GOOS != "windows"){
+			picDirPath = "/data/upload/pic/"
+		}
+		// 检测并创建存储路径
+		havePath,_ := PathExists(picDirPath)
 		if(havePath){
-			// 图片保存到磁盘目录
-			nowstr := time.Now().Unix()
-			picPath := picPrefix + strconv.Itoa(id) + "_" + strconv.FormatInt(nowstr,10) + ".png"
-			wt, err := os.Create(picPath)
+			// 图片保存到存储路径
+			wt, err := os.Create(picDirPath + fileName)
 			if err != nil {
 				fmt.Println("图片保存失败!")
 			}
@@ -276,8 +287,8 @@ func uploadPic(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 			// 转换为jpeg格式的图像，这里质量为30（质量取值是1-100）
 			//jpeg.Encode(wt, m, &jpeg.Options{30})
 			png.Encode(wt,pngPic)
-			// 图片路径值写入数据库
-			pack.Havepic = picPath
+			// 图片web路径值写入数据库
+			pack.Havepic = picWebPath
 		}
 	}
 
