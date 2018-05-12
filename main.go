@@ -22,8 +22,15 @@ import (
 
 // 定义数据库连接实例db对象
 var db *gorm.DB
-// 存入数据库的图片相对路径前缀
-var picPrefix = "upload/pic/"
+
+// web相对路径前缀
+const webPrefix = "upload/pic/"
+
+// windows存储路径，设置exe路径下./upload/pic
+const winDirPath = "./upload/pic/"
+
+// unix存储路径，设置绝对路径/data/upload/pic
+const unixDirPath = "/data/upload/pic/"
 
 type Pack struct {
 	Id int `gorm:"auto_increment"`
@@ -267,13 +274,13 @@ func uploadPic(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 		fileName := strconv.Itoa(id) + "_" + strconv.FormatInt(time.Now().Unix(),10) + ".png"
 
 		// 图片web相对路径
-		picWebPath := picPrefix + fileName
+		picWebPath := webPrefix + fileName
 
-		// 图片存储绝对路径，windows下设置exe路径下./upload/pic
-		picDirPath := "./upload/pic/"
+		// 图片存储路径
+		picDirPath := winDirPath
 		// 非windows系统下设置绝对路径/data/upload/pic
 		if(runtime.GOOS != "windows"){
-			picDirPath = "/data/upload/pic/"
+			picDirPath = unixDirPath
 		}
 		// 检测并创建存储路径
 		havePath,_ := PathExists(picDirPath)
