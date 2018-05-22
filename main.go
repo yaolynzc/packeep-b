@@ -45,6 +45,20 @@ type Pack struct {
 	Outtime time.Time
 }
 
+type User struct {
+	Id string `gorm:"not null"`
+	Name string `gorm:"not null"`
+	Pwd string `gorm:"not null"`
+	Sex int
+	Tel string
+	Email string
+	Super int
+	State int
+	Avatar string
+	Ctime time.Time
+	Mtime time.Time
+}
+
 // 修改默认表名
 //func (Pack) TableName() string {
 //	return "tb_pack"
@@ -401,6 +415,28 @@ func sendDialByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params)
 	w.Write(getJson(result))
 }
 
+// 根据id获取用户信息
+func getUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	// 获取传值
+	pwd := r.FormValue("pwd")
+	id,_ := strconv.Atoi(ps.ByName("id"))
+
+	var user User
+	res := db.Where("id = ? and pwd = ?", id, pwd).First(&user)
+
+	//定义返回的数据结构
+	result := make(map[string]interface{})
+	if res.RowsAffected  > 0 {
+		result["success"] = true
+		result["user"] = user
+	}else{
+		result["success"] = false
+	}
+
+	// 返回json
+	sendJson(w, result)
+}
+
 // 主程序入口
 func main(){
 	// 连接数据库
@@ -418,7 +454,7 @@ func main(){
 	// 启用gorm内置日志功能
 	db.LogMode(true)
 
-	// 定义路由
+	// 定义api接口路由：pack相关
 	router := httprouter.New()
 	router.GET("/api/pack",getList)
 	router.GET("/api/pack/:id",getPack)
@@ -429,6 +465,9 @@ func main(){
 	router.GET("/api/phone/:tel", getUnameByPhone)
 	router.POST("/api/phone", sendDialByPhone)
 	router.POST("/api/pack/:id", uploadPic)
+
+	// 定义api接口路由：user相关
+	router.GET("/api/user/:id", getUser)
 
 	err := http.ListenAndServe(":8080",router)
 	if err != nil {
@@ -446,6 +485,20 @@ func getJson(data interface{})(output []byte){
 		content = []byte("convert to json fail")
 	}
 	return content
+}
+
+// 传入map字典，直接向前端返回json
+func sendJson(w http.ResponseWriter, data interface{}){
+	var content []byte
+	var err error
+
+	content,err = json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		content = []byte("convert to json fail")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(content)
 }
 
 // 通过go发送post请求，通过mysubmail api接口拨打电话
