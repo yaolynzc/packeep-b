@@ -47,10 +47,10 @@ type Pack struct {
 
 type User struct {
 	Id string `gorm:"not null"`
-	Name string `gorm:"not null"`
+	Username string `gorm:"not null"`
+	Nickname string `gorm:"not null"`
 	Pwd string `gorm:"not null"`
 	Sex int
-	Tel string
 	Email string
 	Super int
 	State int
@@ -422,7 +422,7 @@ func getUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	id,_ := strconv.Atoi(ps.ByName("id"))
 
 	var user User
-	res := db.Where("id = ? and pwd = ?", id, pwd).First(&user)
+	res := db.Where("(id = ? || username = ?) and pwd = ?", id, id, pwd).First(&user)
 
 	//定义返回的数据结构
 	result := make(map[string]interface{})
