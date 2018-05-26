@@ -437,6 +437,36 @@ func getUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	sendJson(w, result)
 }
 
+// 修改User记录
+func modUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	r.ParseForm()
+	// 获取传值
+	username := r.FormValue("username")
+	nickname := r.FormValue("nickname")
+
+	id,_ := strconv.Atoi(ps.ByName("id"))
+	var user User
+	db.First(&user,id)
+
+	user.Username =username
+	user.Nickname =nickname
+
+
+	// 执行更新
+	res := db.Save(&user)
+
+	//定义返回的数据结构
+	result := make(map[string]interface{})
+	if res.RowsAffected > 0 {
+		result["success"] = true
+	}else{
+		result["success"] = false
+	}
+
+	// 返回json
+	sendJson(w, result)
+}
+
 // 主程序入口
 func main(){
 	// 连接数据库
@@ -468,6 +498,7 @@ func main(){
 
 	// 定义api接口路由：user相关
 	router.GET("/api/user/:id", getUser)
+	router.PUT("/api/user/:id", modUser)
 
 	err := http.ListenAndServe(":8080",router)
 	if err != nil {
