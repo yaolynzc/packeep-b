@@ -32,6 +32,7 @@ const winDirPath = "./upload/pic/"
 // unix存储路径，设置绝对路径/data/upload/pic
 const unixDirPath = "/data/upload/pic/"
 
+// 定义Pack结构体
 type Pack struct {
 	Id int `gorm:"auto_increment"`
 	Poscode string `gorm:"not null"`
@@ -41,10 +42,12 @@ type Pack struct {
 	Havedial int
 	Havemess int
 	Havepic string
+	Uid string
 	Intime time.Time
 	Outtime time.Time
 }
 
+// 定义User结构体
 type User struct {
 	Id string `gorm:"not null"`
 	Username string `gorm:"not null"`
@@ -90,6 +93,12 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 			state_int,_ := strconv.Atoi(state)
 			rs = rs.Where("state = ?",state_int).Count(&count)
 		}
+		// 根据cookie筛选
+		uid,_ := r.Cookie("uid")
+		//fmt.Printf(uid.Value)
+		if len(uid.Value) != 0 {
+			rs = rs.Where("uid = ?", uid.Value).Count(&count)
+		}
 
 		result["count"] = count		// 符合条件的记录总数
 	}else {
@@ -112,6 +121,13 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 			state_int,_ := strconv.Atoi(state)
 			rs = rs.Where("state = ?",state_int).Find(&packs)
 		}
+		// 根据cookie筛选
+		uid,_ := r.Cookie("uid")
+		//fmt.Printf(uid.Value)
+		if len(uid.Value) != 0 {
+			rs = rs.Where("uid = ?", uid.Value).Find(&packs)
+		}
+
 		// 排序，分页
 		if state == "1" {
 			rs = rs.Order("outtime desc").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
@@ -155,6 +171,7 @@ func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	pcode := r.FormValue("pcode")
 	uphone := r.FormValue("uphone")
 	uname := r.FormValue("uname")
+	uid,_ := r.Cookie("uid")
 
 	var pack Pack
 	pack.Poscode = pcode
@@ -164,6 +181,7 @@ func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	pack.Havedial = 0
 	pack.Havemess = 0
 	pack.Havepic = ""
+	pack.Uid = uid.Value
 	pack.Intime = time.Now()
 	pack.Outtime = time.Now()
 
@@ -419,7 +437,7 @@ func sendDialByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params)
 func getUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	// 获取传值
 	pwd := r.FormValue("pwd")
-	id,_ := strconv.Atoi(ps.ByName("id"))
+	id := ps.ByName("id")
 
 	var user User
 	res := db.Where("(id = ? || username = ?) and pwd = ?", id, id, pwd).First(&user)
@@ -429,6 +447,18 @@ func getUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	if res.RowsAffected  > 0 {
 		result["success"] = true
 		result["user"] = user
+
+		// 先读取cookie，值未空，则设置cookie
+		//_,err := r.Cookie("uidCookie")
+		//if err != nil {
+		//	uLoginCookie := http.Cookie{
+		//		Name: "uidCookie",
+		//		Value: id,
+		//		HttpOnly: true,
+		//	}
+		//	// 向浏览器发送Cookie
+		//	http.SetCookie(w,&uLoginCookie)
+		//}
 	}else{
 		result["success"] = false
 	}
