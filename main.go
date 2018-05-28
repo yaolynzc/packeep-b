@@ -473,14 +473,24 @@ func modUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	// 获取传值
 	username := r.FormValue("username")
 	nickname := r.FormValue("nickname")
+	pwd := r.FormValue(("pwd"))
 
 	id,_ := strconv.Atoi(ps.ByName("id"))
 	var user User
 	db.First(&user,id)
 
-	user.Username =username
-	user.Nickname =nickname
-
+	// 修改用户名
+	if len(username) != 0 {
+		user.Username =username
+	}
+	// 修改昵称
+	if len(nickname) != 0 {
+		user.Nickname = nickname
+	}
+	// 修改密码
+	if len(pwd) != 0 {
+		user.Pwd = pwd
+	}
 
 	// 执行更新
 	res := db.Save(&user)
