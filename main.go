@@ -72,6 +72,7 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 	r.ParseForm()
 	uphone := r.FormValue("uphone")
 	state := r.FormValue("state")
+	daytime := r.FormValue("daytime")
 	page := r.FormValue("page")
 	size := r.FormValue("size")
 
@@ -84,6 +85,13 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 
 		// 查询全部
 		rs := db.Model(&Pack{}).Where("1=1").Count(&count)
+
+		// 根据cookieUid筛选
+		uid,_ := r.Cookie("uid")
+		//fmt.Printf(uid.Value)
+		if len(uid.Value) != 0 {
+			rs = rs.Where("uid = ?", uid.Value).Count(&count)
+		}
 		// 根据uphone筛选
 		if len(uphone) != 0 {
 			rs = rs.Where("userphone like ?", "%"+uphone+"%").Count(&count)
@@ -93,12 +101,11 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 			state_int,_ := strconv.Atoi(state)
 			rs = rs.Where("state = ?",state_int).Count(&count)
 		}
-		// 根据cookie筛选
-		uid,_ := r.Cookie("uid")
-		//fmt.Printf(uid.Value)
-		if len(uid.Value) != 0 {
-			rs = rs.Where("uid = ?", uid.Value).Count(&count)
+		// 根据daytime筛选
+		if len(daytime) != 0 {
+			rs = rs.Where("intime >= ?",daytime).Count(&count)
 		}
+
 
 		result["count"] = count		// 符合条件的记录总数
 	}else {
@@ -111,6 +118,13 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 
 		// 查询全部
 		rs := db.Find(&packs)
+
+		// 根据cookieUid筛选
+		uid,_ := r.Cookie("uid")
+		//fmt.Printf(uid.Value)
+		if len(uid.Value) != 0 {
+			rs = rs.Where("uid = ?", uid.Value).Find(&packs)
+		}
 		// 根据uphone筛选
 		if len(uphone) != 0 {
 			//rs = rs.Where("userphone like ?", "%"+uphone+"%").Order("intime desc").Offset((page_int - 1) * size_int).Limit(size_int).Find(&packs)
@@ -121,11 +135,9 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 			state_int,_ := strconv.Atoi(state)
 			rs = rs.Where("state = ?",state_int).Find(&packs)
 		}
-		// 根据cookie筛选
-		uid,_ := r.Cookie("uid")
-		//fmt.Printf(uid.Value)
-		if len(uid.Value) != 0 {
-			rs = rs.Where("uid = ?", uid.Value).Find(&packs)
+		// 根据daytime筛选
+		if len(daytime) != 0 {
+			rs = rs.Where("intime >= ?",daytime).Find(&packs)
 		}
 
 		// 排序，分页
