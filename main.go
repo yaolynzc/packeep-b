@@ -58,6 +58,7 @@ type User struct {
 	Super int
 	State int
 	Avatar string
+	Address string
 	Ctime time.Time
 	Mtime time.Time
 }
@@ -426,12 +427,24 @@ func sendDialByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params)
 	// 配置“赛邮-云通信-mysubmail”语音通知API基本参数
 	config := make(map[string]interface{})
 	vars := make(map[string]string)
+
 	url := "https://api.mysubmail.com/voice/xsend"
 	config["appid"] = "20694"
 	config["signature"] = "c0428970b976d160b77d59b3e28d7137"
 	config["to"] = uphone
 	config["project"] = "ux0bf2"
 	vars["name"] = uname
+
+	// 获取cookieUid，查询用户地址，作为参数传入电话通知模板
+	uid,_ := r.Cookie("uid")
+	//fmt.Printf(uid.Value)
+	if len(uid.Value) != 0 {
+		var user User
+		res := db.First(&user,uid.Value)
+		if res.RowsAffected  > 0 {
+			vars["address"] = user.Address
+		}
+	}
 	config["vars"] = vars
 
 	postRes := HttpPost(url,config)
@@ -485,6 +498,7 @@ func modUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	// 获取传值
 	username := r.FormValue("username")
 	nickname := r.FormValue("nickname")
+	address := r.FormValue("address")
 	pwd := r.FormValue(("pwd"))
 
 	id,_ := strconv.Atoi(ps.ByName("id"))
@@ -498,6 +512,10 @@ func modUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	// 修改昵称
 	if len(nickname) != 0 {
 		user.Nickname = nickname
+	}
+	// 修改地址
+	if len(address) != 0 {
+		user.Address = address
 	}
 	// 修改密码
 	if len(pwd) != 0 {
