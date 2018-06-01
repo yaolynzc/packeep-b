@@ -74,9 +74,9 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 	uphone := r.FormValue("uphone")
 	state := r.FormValue("state")
 	daytime := r.FormValue("daytime")
+	uid := r.FormValue("uid")
 	page := r.FormValue("page")
 	size := r.FormValue("size")
-	uid := r.FormValue("uid")
 
 	// 定义返回的数据结构
 	result := make(map[string]interface{})
@@ -88,10 +88,9 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 		// 查询全部
 		rs := db.Model(&Pack{}).Where("1=1").Count(&count)
 
-		// 根据cookieUid或前端传入的uid筛选
-		cookieUid,err := r.Cookie("uid")
-		if err == nil || len(uid) != 0 {
-			rs = rs.Where("uid = ?", cookieUid.Value).Count(&count)
+		// 根据uid筛选
+		if len(uid) != 0 {
+			rs = rs.Where("uid = ?", uid).Count(&count)
 		}
 		// 根据uphone筛选
 		if len(uphone) != 0 {
@@ -120,10 +119,9 @@ func getList(w http.ResponseWriter, r *http.Request,_ httprouter.Params) {
 		// 查询全部
 		rs := db.Find(&packs)
 
-		// 根据cookieUid或前端传入的uid筛选
-		cookieUid,err := r.Cookie("uid")
-		if err == nil || len(uid) != 0 {
-			rs = rs.Where("uid = ?", cookieUid.Value).Find(&packs)
+		// 根据uid筛选
+		if len(uid) != 0 {
+			rs = rs.Where("uid = ?", uid).Find(&packs)
 		}
 		// 根据uphone筛选
 		if len(uphone) != 0 {
@@ -193,16 +191,7 @@ func addPack(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	pack.Havedial = 0
 	pack.Havemess = 0
 	pack.Havepic = ""
-	pack.Uid = ""
-	// 前端传入的uid设置Uid值
-	if len(uid) != 0 {
-		pack.Uid = uid
-	}
-	// 根据cookieUid设置Uid值
-	cookieUid,err := r.Cookie("uid")
-	if err == nil {
-		pack.Uid = cookieUid.Value
-	}
+	pack.Uid = uid
 	pack.Intime = time.Now()
 	pack.Outtime = time.Now()
 
@@ -444,11 +433,10 @@ func sendDialByPhone(w http.ResponseWriter,r *http.Request,ps httprouter.Params)
 	config["project"] = "ux0bf2"
 	vars["name"] = uname
 
-	// 根据cookieUid或前端传入的uid，查询用户地址，作为参数传入电话通知模板
-	cookieUid,err := r.Cookie("uid")
-	if err == nil || len(uid) != 0  {
+	// 根据uid查询用户地址，作为参数传入电话通知模板
+	if len(uid) != 0  {
 		var user User
-		res := db.First(&user,cookieUid.Value)
+		res := db.First(&user,uid)
 		if res.RowsAffected  > 0 {
 			vars["address"] = user.Address
 		}
