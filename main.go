@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"image/png"
 	"runtime"
+	"net/url"
 )
 
 // 定义数据库连接实例db对象
@@ -61,6 +62,14 @@ type User struct {
 	Address string
 	Ctime time.Time
 	Mtime time.Time
+}
+
+// 定义Config结构体
+type Config struct {
+	Id int `gorm:"not null"`
+	Name string
+	Value string
+	Time time.Time
 }
 
 // 修改默认表名
@@ -533,6 +542,54 @@ func modUser(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
 	sendJson(w, result)
 }
 
+// 接收前端post请求，通过后台post请求获取百度语音授权token，并将结果返回前端
+func getBDToken(w http.ResponseWriter,r *http.Request,ps httprouter.Params){
+	r.ParseForm()
+	name := r.FormValue("name")
+
+	//定义返回的数据结构
+	result := make(map[string]interface{})
+
+	var config Config
+	res := db.Where("name = ?",name).First(&config)
+
+	//chaz := time.Now().Sub(config.Time).Hours() / 24
+	//fmt.Println(chaz)
+	// 百度语音token每隔30天需要重新申请一次
+	if res.RowsAffected > 0 && (time.Now().Sub(config.Time).Hours() / 24) < 30 {
+		result["success"] = true
+		result[name] = config.Value
+	} else {
+		// get请求url及参数
+		url := "https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=a0Ti0GsnrZNUOnOyKmGfwP06&client_secret=9fea9a93a8eca5a5987e659e875b32a8"
+
+		getRes := HttpGet(url)
+		if(strings.Contains(getRes,"access_token")){
+			if res.RowsAffected == 0 {
+				var newconfig Config
+				newconfig.Name = name
+				newconfig.Value = getRes
+				newconfig.Time = time.Now()
+				// 创建token
+				db.Create(newconfig)
+			} else {
+				config.Value = getRes
+				config.Time = time.Now()
+				// 更新token
+				db.Save(config)
+			}
+			result["success"] = true
+			result[name] = getRes
+		} else {
+			result["success"] = false
+		}
+	}
+
+	// 返回json
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(getJson(result))
+}
+
 // 主程序入口
 func main(){
 	// 连接数据库
@@ -566,6 +623,9 @@ func main(){
 	router.GET("/api/user/:id", getUser)
 	router.PUT("/api/user/:id", modUser)
 
+	// 向百度授权服务发送get请求，获取token
+	router.GET("/api/config",getBDToken)
+
 	err := http.ListenAndServe(":8080",router)
 	if err != nil {
 		log.Fatalln("服务器成功启动，端口：8080")
@@ -598,7 +658,22 @@ func sendJson(w http.ResponseWriter, data interface{}){
 	w.Write(content)
 }
 
-// 通过go发送post请求，通过mysubmail api接口拨打电话
+// 通过go发送get请求
+func HttpGet(queryurl string) string {
+	u, _ := url.Parse(queryurl)
+	retstr, err := http.Get(u.String())
+	if err != nil {
+		return err.Error()
+	}
+	result, err := ioutil.ReadAll(retstr.Body)
+	retstr.Body.Close()
+	if err != nil {
+		return err.Error()
+	}
+	return string(result)
+}
+
+// 通过go发送post请求
 func HttpPost(queryurl string, postdata map[string]interface{}) string {
 	data, err := json.Marshal(postdata)
 	if err != nil {
